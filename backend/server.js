@@ -4,89 +4,74 @@ const cheerio = require('cheerio');
 const cors = require('cors');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
-
 app.use(cors());
 
-// Health check endpoint
-app.get('/', (req, res) => {
-    res.send('Smart Habesha Scraper API is running');
-});
-
-// Scraper endpoint
+// Route to get video info
 app.get('/api/episode', async (req, res) => {
-    const { url } = req.query;
+    const targetUrl = req.query.url;
 
-    if (!url) {
-        return res.status(400).json({ error: 'URL parameter is required' });
+    // 1. Safety Check: Is it a valid URL?
+    if (!targetUrl || !targetUrl.startsWith('http')) {
+        return res.status(400).json({
+            error: 'Invalid URL. Please provide a full link starting with http/https.'
+        });
     }
 
     try {
-        // 1. Fetch the HTML
-        const response = await axios.get(url, {
+        console.log(`Scraping: ${targetUrl}`);
+
+        // 2. Fetch with "Browser Disguise" (User-Agent)
+        const { data } = await axios.get(targetUrl, {
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
             }
         });
 
-        const html = response.data;
-        const $ = cheerio.load(html);
+        const $ = cheerio.load(data);
 
-        // 2. Extract Video Source
-        // The player often has id="my-player"
-        const videoElement = $('video#my-player, video');
-        const videoSrc = videoElement.attr('src');
-        const poster = videoElement.attr('poster');
+        // 3. Extract Video (Try multiple ways)
+        let videoSrc = $('video#my-player').attr('src') ||
+            $('source').first().attr('src');
 
-        // 3. Extract Episode List
-        // Looking for the "episode-list" container and links inside it.
-        // Based on research: 
-        // Structure: <div class="episode-list"> ... <a href="..."> <img src="..."> </a> ... </div>
-        // Or sometimes they are just straight links in a container.
-        // We will look for <a> tags that look like episode links.
-        
+        const poster = $('video#my-player').attr('poster');
+        const title = $('title').text().replace(' - Smart Habesha', '').trim();
+
+        // 4. Extract Episodes
         const episodes = [];
-        
-        // Strategy: specific container or heuristic search
-        // We observed links usually have "SmartPlayeryz/Yegna%20Sefer" in href
-        
+
+        // Find all links that look like episode cards
         $('a').each((i, el) => {
-            const href = $(el).attr('href');
-            if (href && href.includes('/SmartPlayeryz/')) {
-                const img = $(el).find('img').attr('src');
-                const text = $(el).text().trim() || 'Episode ' + (i + 1);
-                
-                // Deduplicate or basic cleanup if needed
-                // Only add if we haven't seen this exact link before? 
-                // For now, let's just push details.
+            const link = $(el).attr('href');
+            const img = $(el).find('img').attr('src');
+            const text = $(el).text().trim();
+
+            // Filter: Only keep links that look like episodes
+            if (link && link.includes('SmartPlayeryz') && img) {
                 episodes.push({
-                    title: text,
-                    url: href,
-                    thumbnail: img || poster // Fallback to poster if no specific thumb
+                    id: i,
+                    title: text || "Episode " + (i + 1),
+                    poster: img,
+                    link: link.startsWith('http') ? link : `https://bspo.smarthabesha.com${link}`
                 });
             }
         });
 
-        // Filter out duplicates if any
-        const uniqueEpisodes = episodes.filter((ep, index, self) =>
-            index === self.findIndex((t) => (
-                t.url === ep.url
-            ))
-        );
+        // Debug Log
+        console.log(`Found Video: ${videoSrc ? 'Yes' : 'No'}`);
+        console.log(`Found Episodes: ${episodes.length}`);
 
         res.json({
-            videoSrc,
-            poster,
-            title: $('title').text().trim(),
-            episodes: uniqueEpisodes
+            videoUrl: videoSrc,
+            poster: poster,
+            title: title || "Smart Habesha Player",
+            relatedEpisodes: episodes
         });
 
     } catch (error) {
-        console.error('Error scraping:', error.message);
-        res.status(500).json({ error: 'Failed to fetch episode data', details: error.message });
+        console.error("Scraper Error:", error.message);
+        res.status(500).json({ error: 'Failed to scrape data', details: error.message });
     }
 });
 
-app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-});
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Scraper running on port ${PORT}`));

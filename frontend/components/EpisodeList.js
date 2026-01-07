@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image } from 'react
 
 const EpisodeList = ({ episodes, onSelectEpisode, currentUrl }) => {
     const renderItem = ({ item }) => {
-        const isSelected = item.url === currentUrl;
+        const isSelected = item.link === currentUrl;
 
         return (
             <TouchableOpacity
@@ -11,7 +11,7 @@ const EpisodeList = ({ episodes, onSelectEpisode, currentUrl }) => {
                 onPress={() => onSelectEpisode(item)}
             >
                 <Image
-                    source={{ uri: item.thumbnail || 'https://via.placeholder.com/150' }}
+                    source={{ uri: item.poster || 'https://via.placeholder.com/150' }}
                     style={styles.thumbnail}
                     resizeMode="cover"
                 />
@@ -31,7 +31,7 @@ const EpisodeList = ({ episodes, onSelectEpisode, currentUrl }) => {
             <FlatList
                 data={episodes}
                 renderItem={renderItem}
-                keyExtractor={(item, index) => item.url + index}
+                keyExtractor={(item, index) => item.link + index}
                 contentContainerStyle={styles.listContent}
             />
         </View>

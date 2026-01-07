@@ -26,7 +26,7 @@ export default function App() {
       });
       console.log('Got data:', response.data);
       setData(response.data);
-      setCurrentVideoSrc(response.data.videoSrc);
+      setCurrentVideoSrc(response.data.videoUrl);
     } catch (err) {
       console.error(err);
       setError('Failed to fetch data. Check URL and backend connection.');
@@ -39,8 +39,8 @@ export default function App() {
     // If we select an episode, we essentially want to "browse" to that page
     // The backend scraper scrapes a PAGE, which contains the video and list.
     // So we just re-fetch the new URL.
-    setTargetUrl(episode.url);
-    fetchData(episode.url);
+    setTargetUrl(episode.link);
+    fetchData(episode.link);
   };
 
   return (
@@ -94,7 +94,7 @@ export default function App() {
         ) : (
           data && (
             <EpisodeList
-              episodes={data.episodes || []}
+              episodes={data.relatedEpisodes || []}
               onSelectEpisode={handleEpisodeSelect}
               currentUrl={targetUrl}
             />
